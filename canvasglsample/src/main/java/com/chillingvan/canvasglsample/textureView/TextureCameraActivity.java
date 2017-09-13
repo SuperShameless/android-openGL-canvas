@@ -23,10 +23,10 @@ package com.chillingvan.canvasglsample.textureView;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.hardware.Camera;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 
 import com.chillingvan.canvasgl.Loggers;
@@ -37,14 +37,19 @@ import com.chillingvan.canvasgl.glview.texture.gles.EglContextWrapper;
 import com.chillingvan.canvasgl.glview.texture.gles.GLThread;
 import com.chillingvan.canvasgl.textureFilter.PixelationFilter;
 import com.chillingvan.canvasglsample.R;
+import com.chillingvan.canvasglsample.textureView.camera.CameraManager;
+import com.chillingvan.canvasglsample.textureView.camera.open.OpenCameraInterface;
 
 import java.io.IOException;
 
-public class TextureCameraActivity extends AppCompatActivity {
+public class TextureCameraActivity extends AppCompatActivity implements View.OnClickListener {
+    private static final String TAG = "TextureCameraActivity";
 
-    private Camera mCamera;
+    private int cameraFacing = OpenCameraInterface.CAMERA_FACING_BACK;
+    private CameraManager cameraManager;
     private CameraPreviewTextureView cameraTextureView;
     private PreviewConsumerTextureView previewConsumerTextureView;
+    private Button toggle;
     private ImageView imageView;
 
     @Override
@@ -52,7 +57,24 @@ public class TextureCameraActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_texture_canvas);
 
+        toggle = (Button) findViewById(R.id.toggle);
         imageView = (ImageView) findViewById(R.id.image_v);
+
+        toggle.setOnClickListener(this);
+    }
+
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.toggle: {
+                cameraFacing = cameraFacing != OpenCameraInterface.CAMERA_FACING_FRONT ?
+                        OpenCameraInterface.CAMERA_FACING_FRONT :
+                        OpenCameraInterface.CAMERA_FACING_BACK;
+                closeCamera();
+                openCamera();
+                break;
+            }
+        }
     }
 
     private void initCameraTexture() {
@@ -92,7 +114,7 @@ public class TextureCameraActivity extends AppCompatActivity {
         cameraTextureView.setOnSurfaceTextureSet(new GLSurfaceTextureProducerView.OnSurfaceTextureSet() {
             @Override
             public void onSet(SurfaceTexture surfaceTexture, RawTexture surfaceTextureRelatedTexture) {
-                Loggers.d("TextureCameraActivity", String.format("onSet: "));
+                Loggers.d(TAG, String.format("onSet: "));
                 previewConsumerTextureView.setSharedTexture(surfaceTextureRelatedTexture, surfaceTexture);
                 surfaceTexture.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
                     @Override
@@ -102,12 +124,7 @@ public class TextureCameraActivity extends AppCompatActivity {
                     }
                 });
 
-                try {
-                    mCamera.setPreviewTexture(surfaceTexture);
-                } catch (IOException ioe) {
-                    throw new RuntimeException(ioe);
-                }
-                mCamera.startPreview();
+                openCamera();
             }
         });
     }
@@ -117,47 +134,47 @@ public class TextureCameraActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Loggers.d("TextureCameraActivity", String.format("onResume: "));
-        openCamera();
         initCameraTexture();
+        openCamera();
         cameraTextureView.onResume();
         previewConsumerTextureView.onResume();
     }
 
     private void openCamera() {
-        Camera.CameraInfo info = new Camera.CameraInfo();
-
-        // Try to find a front-facing camera (e.g. for videoconferencing).
-        int numCameras = Camera.getNumberOfCameras();
-        for (int i = 0; i < numCameras; i++) {
-            Camera.getCameraInfo(i, info);
-            if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-                mCamera = Camera.open(i);
-                break;
-            }
-        }
-        if (mCamera == null) {
-            mCamera = Camera.open();    // opens first back-facing camera
+        SurfaceTexture surfaceTexture = cameraTextureView.getSurfaceTexture();
+        if (surfaceTexture == null) {
+            Loggers.w(TAG, "No surfaceTexture provided");
+            return;
         }
 
-        Camera.Parameters parms = mCamera.getParameters();
+        if (cameraManager == null) {
+            cameraManager = new CameraManager(getApplicationContext());
+        }
 
-        CameraUtils.choosePreviewSize(parms, 1280, 720);
+        if (cameraManager.isOpen()) {
+            Loggers.w(TAG, "openCamera() while already open -- late SurfaceView callback?");
+            return;
+        }
+
+        try {
+            cameraManager.setManualCameraFacing(cameraFacing);
+            cameraManager.openDriver(surfaceTexture);
+            cameraManager.startPreview();
+        } catch (IOException | RuntimeException e) {
+            e.printStackTrace();
+        }
     }
 
-
-    private void releaseCamera() {
-        if (mCamera != null) {
-            mCamera.stopPreview();
-            mCamera.release();
-            mCamera = null;
-        }
+    private void closeCamera() {
+        cameraManager.stopPreview();
+        cameraManager.closeDriver();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         Loggers.d("TextureCameraActivity", String.format("onPause: "));
-        releaseCamera();
+        closeCamera();
         cameraTextureView.onPause();
         previewConsumerTextureView.onPause();
     }

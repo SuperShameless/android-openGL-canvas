@@ -40,6 +40,7 @@
         android:layout_alignParentRight="true"/>
 
     <LinearLayout
+        android:id="@+id/texture_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
@@ -72,5 +73,11 @@
 
     </LinearLayout>
 
+    <Button
+        android:id="@+id/toggle"
+        android:layout_below="@id/texture_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="toggle camera facing"/>
 
 </RelativeLayout>
