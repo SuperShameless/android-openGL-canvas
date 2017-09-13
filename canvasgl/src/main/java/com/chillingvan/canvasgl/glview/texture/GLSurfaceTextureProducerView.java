@@ -74,6 +74,7 @@ public abstract class GLSurfaceTextureProducerView extends GLSharedContextView {
 
     /**
      * If it is used, it must be called before start() called.
+     *
      * @param producedTextureTarget GLES20.GL_TEXTURE_2D or GLES11Ext.GL_TEXTURE_EXTERNAL_OES
      */
     public void setProducedTextureTarget(int producedTextureTarget) {
@@ -96,6 +97,7 @@ public abstract class GLSurfaceTextureProducerView extends GLSharedContextView {
             if (!producedRawTexture.isLoaded()) {
                 producedRawTexture.prepare(mCanvas.getGlCanvas());
             }
+            producedRawTexture.setIsFlippedVertically(true);
             producedSurfaceTexture = new SurfaceTexture(producedRawTexture.getId());
             post(new Runnable() {
                 @Override
@@ -135,4 +137,8 @@ public abstract class GLSurfaceTextureProducerView extends GLSharedContextView {
         }
     }
 
+    @Override
+    public SurfaceTexture getSurfaceTexture() {
+        return producedSurfaceTexture;
+    }
 }
